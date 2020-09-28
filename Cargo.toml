@@ -1,0 +1,17 @@
+[package]
+name = "stringmatch"
+version = "0.1.0"
+authors = ["Steve Pryde <steve@stevepryde.com>"]
+edition = "2018"
+
+license = "MIT"
+description = "Allow the use of regular expressions or strings wherever you need string comparison"
+homepage = "https://github.com/stevepryde/stringmatch"
+repository = "https://github.com/stevepryde/stringmatch"
+documentation = "https://docs.rs/stringmatch"
+readme = "README.md"
+
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
