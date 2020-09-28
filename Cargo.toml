@@ -11,6 +11,8 @@ repository = "https://github.com/stevepryde/stringmatch"
 documentation = "https://docs.rs/stringmatch"
 readme = "README.md"
 
+keywords = ["string", "comparison", "match", "regex", "compare"]
+categories = ["Text processing", "Rust patterns", "Algorithms"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
