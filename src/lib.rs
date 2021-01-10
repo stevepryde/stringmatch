@@ -15,9 +15,23 @@ pub trait NeedleIter: Needle {
 }
 
 #[derive(Debug, Clone)]
+pub enum StringMatchLength {
+    /// Needle string must match the whole haystack string.
+    Full,
+    /// Needle string can be any substring within the haystack string.
+    Partial,
+    /// Needle string will only match strings within the haystack surrounded by spaces or
+    /// a string boundary.
+    Word,
+}
+
+#[derive(Debug, Clone)]
 pub struct StringMatch {
     text: String,
-    partial: bool,
+    /// The match length to use. Default is StringMatchLength::Full, which means the needle
+    /// string must match the entire haystack.
+    match_length: StringMatchLength,
+    /// If true, use a case-sensitive match. Default is true.
     case_sensitive: bool,
 }
 
@@ -28,7 +42,7 @@ where
     fn from(text: S) -> Self {
         Self {
             text: text.into(),
-            partial: false,
+            match_length: StringMatchLength::Full,
             case_sensitive: true,
         }
     }
@@ -42,8 +56,16 @@ impl StringMatch {
         Self::from(text)
     }
 
-    pub fn is_partial(&self) -> bool {
-        self.partial
+    pub fn is_full_match(&self) -> bool {
+        matches!(self.match_length, StringMatchLength::Full)
+    }
+
+    pub fn is_partial_match(&self) -> bool {
+        matches!(self.match_length, StringMatchLength::Partial)
+    }
+
+    pub fn is_word_match(&self) -> bool {
+        matches!(self.match_length, StringMatchLength::Word)
     }
 
     pub fn is_case_sensitive(&self) -> bool {
@@ -51,12 +73,17 @@ impl StringMatch {
     }
 
     pub fn partial(mut self) -> Self {
-        self.partial = true;
+        self.match_length = StringMatchLength::Partial;
         self
     }
 
-    pub fn whole(mut self) -> Self {
-        self.partial = false;
+    pub fn full(mut self) -> Self {
+        self.match_length = StringMatchLength::Full;
+        self
+    }
+
+    pub fn word(mut self) -> Self {
+        self.match_length = StringMatchLength::Word;
         self
     }
 
@@ -71,17 +98,23 @@ impl StringMatch {
     }
 }
 
+fn needle_in_haystack(needle: &str, haystack: &str, match_length: &StringMatchLength) -> bool {
+    match match_length {
+        StringMatchLength::Full => haystack == needle,
+        StringMatchLength::Partial => haystack.contains(needle),
+        StringMatchLength::Word => format!(" {} ", haystack).contains(&format!(" {} ", needle)),
+    }
+}
+
 impl Needle for StringMatch {
     fn is_match(&self, haystack: &str) -> bool {
         match self.case_sensitive {
-            true => match self.partial {
-                true => haystack.contains(&self.text),
-                false => haystack == self.text,
-            },
-            false => match self.partial {
-                true => haystack.to_lowercase().contains(&self.text.to_lowercase()),
-                false => haystack.to_lowercase() == self.text.to_lowercase(),
-            },
+            true => needle_in_haystack(&self.text, haystack, &self.match_length),
+            false => {
+                let hs = haystack.to_lowercase();
+                let needle = self.text.to_lowercase();
+                needle_in_haystack(&needle, &hs, &self.match_length)
+            }
         }
     }
 }
@@ -110,27 +143,32 @@ mod tests {
 
     #[test]
     fn test_stringmatch() {
-        assert!(!StringMatch::from("a").is_partial());
+        assert!(StringMatch::from("a").is_full_match());
+        assert!(!StringMatch::from("a").is_partial_match());
         assert!(StringMatch::from("a").is_case_sensitive());
         assert!(StringMatch::from("a").is_match("a"));
         assert!(!StringMatch::from("a").is_match(""));
         assert!(!StringMatch::from("a").is_match("b"));
         assert!(!StringMatch::from("a").is_match("A"));
 
-        assert!(StringMatch::from("a").partial().is_partial());
+        assert!(StringMatch::from("a").partial().is_partial_match());
+        assert!(!StringMatch::from("a").partial().is_full_match());
+        assert!(!StringMatch::from("a").partial().is_word_match());
         assert!(StringMatch::from("a").partial().is_case_sensitive());
         assert!(StringMatch::from("a").partial().is_match("a"));
         assert!(StringMatch::from("a").partial().is_match("aa"));
         assert!(StringMatch::from("a").partial().is_match("dad"));
         assert!(StringMatch::from("a").partial().is_match("ba"));
+        assert!(!StringMatch::from("A").partial().is_match("a"));
+        assert!(!StringMatch::from("a").partial().is_match("A"));
 
         assert!(!StringMatch::from("a").case_insensitive().is_case_sensitive());
-        assert!(!StringMatch::from("a").case_insensitive().is_partial());
+        assert!(!StringMatch::from("a").case_insensitive().is_partial_match());
         assert!(StringMatch::from("a").case_insensitive().is_match("a"));
         assert!(StringMatch::from("a").case_insensitive().is_match("A"));
         assert!(!StringMatch::from("a").case_insensitive().is_match("aa"));
 
-        assert!(StringMatch::from("a").partial().case_insensitive().is_partial());
+        assert!(StringMatch::from("a").partial().case_insensitive().is_partial_match());
         assert!(!StringMatch::from("a").partial().case_insensitive().is_case_sensitive());
         assert!(StringMatch::from("a").partial().case_insensitive().is_match("a"));
         assert!(StringMatch::from("a").partial().case_insensitive().is_match("aa"));
@@ -138,6 +176,42 @@ mod tests {
         assert!(StringMatch::from("a").partial().case_insensitive().is_match("AA"));
         assert!(StringMatch::from("aA").partial().case_insensitive().is_match("Aa"));
         assert!(StringMatch::from("aA").partial().case_insensitive().is_match("Aaa"));
+
+        assert!(StringMatch::from("a").word().is_word_match());
+        assert!(!StringMatch::from("a").word().is_partial_match());
+        assert!(!StringMatch::from("a").word().is_full_match());
+        assert!(StringMatch::from("a").word().is_case_sensitive());
+        assert!(StringMatch::from("a").word().is_match("a"));
+        assert!(!StringMatch::from("a").word().is_match("aa"));
+        assert!(!StringMatch::from("a").word().is_match("dad"));
+        assert!(!StringMatch::from("a").word().is_match("ba"));
+        assert!(StringMatch::from("a").word().is_match("aa a aa"));
+        assert!(StringMatch::from("a").word().is_match("a aa"));
+        assert!(StringMatch::from("a").word().is_match("aa a"));
+        assert!(!StringMatch::from("A").word().is_match("a"));
+        assert!(!StringMatch::from("a").word().is_match("A"));
+        assert!(StringMatch::from("aaa aa").word().case_insensitive().is_match("aaa aa"));
+        assert!(StringMatch::from("aaa aa").word().case_insensitive().is_match("aa aaa aa aaa"));
+        assert!(StringMatch::from("aaa aa").word().case_insensitive().is_match("aaa aa aaa"));
+        assert!(StringMatch::from("aaa aa").word().case_insensitive().is_match("aa aaa aa"));
+        assert!(!StringMatch::from("aaa aa").word().case_insensitive().is_match("aa aaa aaa"));
+
+        assert!(StringMatch::from("a").word().case_insensitive().is_word_match());
+        assert!(!StringMatch::from("a").word().case_insensitive().is_case_sensitive());
+        assert!(StringMatch::from("a").word().case_insensitive().is_match("a"));
+        assert!(!StringMatch::from("a").word().case_insensitive().is_match("aa"));
+        assert!(StringMatch::from("a").word().case_insensitive().is_match("A"));
+        assert!(StringMatch::from("a").word().case_insensitive().is_match("AA A AA"));
+        assert!(StringMatch::from("aA").word().case_insensitive().is_match("Aa"));
+        assert!(StringMatch::from("aA").word().case_insensitive().is_match("aa"));
+        assert!(StringMatch::from("A").word().case_insensitive().is_match("aa a aa"));
+        assert!(StringMatch::from("A").word().case_insensitive().is_match("a aa"));
+        assert!(StringMatch::from("A").word().case_insensitive().is_match("aa a"));
+        assert!(StringMatch::from("AAA AA").word().case_insensitive().is_match("aaa aa"));
+        assert!(StringMatch::from("AAA AA").word().case_insensitive().is_match("aa aaa aa aaa"));
+        assert!(StringMatch::from("AAA AA").word().case_insensitive().is_match("aaa aa aaa"));
+        assert!(StringMatch::from("AAA AA").word().case_insensitive().is_match("aa aaa aa"));
+        assert!(!StringMatch::from("AAA AA").word().case_insensitive().is_match("aa aaa aaa"));
     }
 
     fn needle_is_match<N>(needle: N) -> bool
