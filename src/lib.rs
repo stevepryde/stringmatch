@@ -137,6 +137,15 @@ impl Needle for String {
     }
 }
 
+impl<F> Needle for F
+where
+    F: Fn(&str) -> bool,
+{
+    fn is_match(&self, haystack: &str) -> bool {
+        self(haystack)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -281,5 +290,9 @@ mod tests {
         assert!(!dynamic_dispatched_needle(&Regex::new(r"^est").unwrap()));
         assert!(!dynamic_dispatched_needle(&Regex::new(r"Te$").unwrap()));
         assert!(dynamic_dispatched_needle(&Regex::new(r"^T.+t$").unwrap()));
+
+        assert!(dynamic_dispatched_needle(&|s: &str| s == "Test"));
+        assert!(!dynamic_dispatched_needle(&|s: &str| s == "test"));
+        assert!(!dynamic_dispatched_needle(&|s: &str| s == "Te"));
     }
 }
