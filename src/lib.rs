@@ -1,4 +1,5 @@
 use regex::Regex;
+use std::fmt::Debug;
 
 pub trait Needle {
     fn is_match(&self, haystack: &str) -> bool;
@@ -145,6 +146,11 @@ where
         self(haystack)
     }
 }
+
+pub trait NeedleDebug: Needle + Debug {}
+impl NeedleDebug for String {}
+impl NeedleDebug for Regex {}
+impl NeedleDebug for StringMatch {}
 
 #[cfg(test)]
 mod tests {
