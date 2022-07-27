@@ -1,5 +1,6 @@
 use regex::Regex;
-use std::fmt::Debug;
+#[cfg(feature = "serde_derive")]
+use serde::{Deserialize, Serialize};
 
 pub trait Needle {
     fn is_match(&self, haystack: &str) -> bool;
@@ -15,7 +16,8 @@ pub trait NeedleIter: Needle {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde_derive", derive(Serialize, Deserialize))]
 pub enum StringMatchLength {
     /// Needle string must match the whole haystack string.
     Full,
@@ -26,7 +28,8 @@ pub enum StringMatchLength {
     Word,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde_derive", derive(Serialize, Deserialize))]
 pub struct StringMatch {
     text: String,
     /// The match length to use. Default is StringMatchLength::Full, which means the needle
@@ -147,10 +150,30 @@ where
     }
 }
 
-pub trait NeedleDebug: Needle + Debug {}
-impl NeedleDebug for String {}
-impl NeedleDebug for Regex {}
-impl NeedleDebug for StringMatch {}
+pub trait StringMatchable: Into<StringMatch> {
+    fn match_case_sensitive(self) -> StringMatch {
+        self.into().case_sensitive()
+    }
+
+    fn match_case_insensitive(self) -> StringMatch {
+        self.into().case_insensitive()
+    }
+
+    fn match_full(self) -> StringMatch {
+        self.into().full()
+    }
+
+    fn match_word(self) -> StringMatch {
+        self.into().word()
+    }
+
+    fn match_partial(self) -> StringMatch {
+        self.into().partial()
+    }
+}
+
+impl StringMatchable for String {}
+impl StringMatchable for &str {}
 
 #[cfg(test)]
 mod tests {
@@ -229,6 +252,27 @@ mod tests {
         assert!(!StringMatch::from("AAA AA").word().case_insensitive().is_match("aa aaa aaa"));
     }
 
+    #[test]
+    fn test_stringmatchable() {
+        assert_eq!("a".match_full(), StringMatch::new("a").full());
+        assert_eq!("a".match_partial(), StringMatch::new("a").partial());
+        assert_eq!("a".match_word(), StringMatch::new("a").word());
+        assert_eq!("a".match_case_insensitive(), StringMatch::new("a").case_insensitive());
+        assert_eq!("a".match_case_sensitive(), StringMatch::new("a").case_sensitive());
+
+        assert_eq!(String::from("a").match_full(), StringMatch::new("a").full());
+        assert_eq!(String::from("a").match_partial(), StringMatch::new("a").partial());
+        assert_eq!(String::from("a").match_word(), StringMatch::new("a").word());
+        assert_eq!(
+            String::from("a").match_case_insensitive(),
+            StringMatch::new("a").case_insensitive()
+        );
+        assert_eq!(
+            String::from("a").match_case_sensitive(),
+            StringMatch::new("a").case_sensitive()
+        );
+    }
+
     fn needle_is_match<N>(needle: N) -> bool
     where
         N: Needle,
@@ -300,5 +344,14 @@ mod tests {
         assert!(dynamic_dispatched_needle(&|s: &str| s == "Test"));
         assert!(!dynamic_dispatched_needle(&|s: &str| s == "test"));
         assert!(!dynamic_dispatched_needle(&|s: &str| s == "Te"));
+    }
+
+    #[cfg(feature = "serde_derive")]
+    #[test]
+    fn test_serde() {
+        let orig = StringMatch::new("a").partial().case_insensitive();
+        let serialized: String = serde_json::to_string(&orig).unwrap();
+        let deserialized: StringMatch = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized, orig);
     }
 }

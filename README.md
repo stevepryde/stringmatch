@@ -29,12 +29,18 @@ accept_needle(Regex::new(r"^T.+t$").unwrap());
 ```
 
 For string comparisons you can also use `StringMatch` which allows you to be more explicit about the comparison:
-```
+```rust
 accept_needle(StringMatch::from("test").case_insensitive());
 accept_needle(StringMatch::from("tes").partial());
 ```
     
 By default `StringMatch` matches the whole string and is case sensitive (safety by default).
+
+And finally there is the `StringMatchable` trait that is implemented for `String` and `&str`:
+```rust
+accept_needle("test".match_case_insensitive());
+accept_needle("tes".match_partial());
+```
 
 ## Using Dynamic Dispatch
 
